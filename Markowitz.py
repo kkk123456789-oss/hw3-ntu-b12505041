@@ -62,7 +62,19 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
-
+        # 1. 取得不包含 'exclude' (SPY) 的資產列表
+        #    (這行程式碼在你的 class 中已經有了)
+        #    assets = df.columns[df.columns != self.exclude]
+        
+        # 2. 計算資產數量
+        num_assets = len(assets)
+        
+        # 3. 計算每項資產應有的權重
+        equal_weight = 1.0 / num_assets
+        
+        # 4. 將這個固定權重賦值給 portfolio_weights 中所有資產的每一天
+        for asset in assets:
+            self.portfolio_weights[asset] = equal_weight
         """
         TODO: Complete Task 1 Above
         """
@@ -113,9 +125,32 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
-
-
-
+        # 修正：範圍從 lookback + 1 開始，與 Problem 3 保持一致
+        # 這能避開 index 0 (那是 pct_change 產生的 0，會干擾波動率計算)
+        for i in range(self.lookback + 1, len(df)):
+            
+            # 1. 取得視窗資料 (不包含今天 i)
+            #    當 i = 51 時，iloc[1:51] 取出的是 index 1 到 50 (共 50 筆)
+            #    剛好避開了 index 0 的髒資料
+            window_returns = df_returns[assets].iloc[i - self.lookback : i]
+            
+            # 2. 計算波動率 (標準差)
+            vols = window_returns.std()
+            
+            # 3. 計算倒數與權重
+            vols = vols.replace(0, np.nan)
+            inverse_vols = 1.0 / vols
+            
+            
+            sum_inv_vols = inverse_vols.sum()
+            
+            if sum_inv_vols == 0 or np.isnan(sum_inv_vols):
+                weights = 0
+            else:
+                weights = inverse_vols / sum_inv_vols
+            
+            # 4. 寫入權重
+            self.portfolio_weights.loc[df.index[i], assets] = weights
         """
         TODO: Complete Task 2 Above
         """
@@ -188,10 +223,27 @@ class MeanVariancePortfolio:
                 TODO: Complete Task 3 Below
                 """
 
-                # Sample Code: Initialize Decision w and the Objective
-                # NOTE: You can modify the following code
-                w = model.addMVar(n, name="w", ub=1)
-                model.setObjective(w.sum(), gp.GRB.MAXIMIZE)
+                # 1. 定義決策變數 w (權重向量)
+                #    n = 資產數量
+                #    lb=0.0 (Lower Bound) 滿足 "僅做多 (long-only)" 條件
+                #    ub=1.0 (Upper Bound) 滿足 "權重不大於 1"
+                w = model.addMVar(n, name="w", lb=0.0, ub=1.0)
+                
+                # 2. 定義目標函式
+                #    目標: Maximize (w' * mu - (gamma / 2) * w' * Sigma * w)
+                
+                #    線性部分: w' * mu (w 轉置 乘 mu)
+                linear_part = mu @ w
+                
+                #    二次規劃部分: (gamma / 2) * w' * Sigma * w
+                quadratic_part = (self.gamma / 2) * (w @ Sigma @ w)
+                
+                #    設定目標函式
+                model.setObjective(linear_part - quadratic_part, gp.GRB.MAXIMIZE)
+                
+                # 3. 定義限制條件
+                #    "無槓桿 (no leverage)" 條件: sum(w) = 1
+                model.addConstr(w.sum() == 1, name="budget")
 
                 """
                 TODO: Complete Task 3 Above
