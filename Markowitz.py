@@ -52,6 +52,7 @@ Implement an equal weighting strategy as dataframe "eqw". Please do "not" includ
 
 class EqualWeightPortfolio:
     def __init__(self, exclude):
+        
         self.exclude = exclude
 
     def calculate_weights(self):

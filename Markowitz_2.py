@@ -112,6 +112,7 @@ class MyPortfolio:
             self.portfolio_returns[assets]
             .mul(self.portfolio_weights[assets])
             .sum(axis=1)
+            
         )
 
     def get_results(self):
